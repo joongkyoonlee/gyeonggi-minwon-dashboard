@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>경기도청 민원 대시보드</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#f4f6fa; --card:#ffffff; --ink:#1f2733; --sub:#6b7684;
+    --line:#e6eaf0; --brand:#1a56db; --brand2:#2f6fed;
+    --ok:#12b76a; --warn:#f79009; --bad:#f04438; --shadow:0 1px 3px rgba(16,24,40,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Malgun Gothic","맑은 고딕",system-ui,sans-serif;
+       background:var(--bg);color:var(--ink);font-size:14px;}
+  .wrap{max-width:1360px;margin:0 auto;padding:20px 24px 48px;}
+  header{display:flex;align-items:center;justify-content:space-between;
+         padding:6px 2px 16px;flex-wrap:wrap;gap:10px;}
+  header h1{font-size:22px;margin:0;font-weight:800;letter-spacing:-.3px;}
+  header h1 .sub{font-size:13px;color:var(--sub);font-weight:500;margin-left:8px;}
+  .status{display:flex;align-items:center;gap:14px;color:var(--sub);font-size:13px;}
+  .live{display:inline-flex;align-items:center;gap:6px;color:var(--sub);font-weight:600;}
+  .live.on{color:var(--ok);}
+  .dot{width:9px;height:9px;border-radius:50%;background:#cbd3dd;}
+  .live.on .dot{background:var(--ok);box-shadow:0 0 0 0 rgba(18,183,106,.6);animation:pulse 1.8s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(18,183,106,.5)}70%{box-shadow:0 0 0 8px rgba(18,183,106,0)}100%{box-shadow:0 0 0 0 rgba(18,183,106,0)}}
+  .flash{animation:flash .9s ease;}
+  @keyframes flash{0%{background:#fffbeb}100%{background:var(--card)}}
+
+  .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+           background:var(--card);border:1px solid var(--line);border-radius:12px;
+           padding:12px 14px;margin-bottom:16px;box-shadow:var(--shadow);}
+  .filters select,.filters button{font-family:inherit;font-size:13px;
+           border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:#fff;color:var(--ink);cursor:pointer;}
+  .filters .lbl{color:var(--sub);font-size:12px;margin-right:-4px;}
+  .filters .reset{margin-left:auto;background:var(--brand);color:#fff;border:none;font-weight:600;}
+  .filters .demo{background:#fff;border:1px solid var(--brand);color:var(--brand);font-weight:600;}
+
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px;}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);}
+  .kpi .k-label{color:var(--sub);font-size:12.5px;margin-bottom:8px;}
+  .kpi .k-value{font-size:26px;font-weight:800;letter-spacing:-.5px;}
+  .kpi .k-value small{font-size:14px;font-weight:600;color:var(--sub);}
+  .kpi.alert{background:#fff8f7;border-color:#fecdca;}
+  .kpi.alert .k-value{color:var(--bad)}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);}
+  .card h3{margin:0 0 12px;font-size:14.5px;font-weight:700;}
+  .card h3 .hint{font-weight:400;color:var(--sub);font-size:12px;margin-left:6px;}
+  .chart-box{position:relative;height:260px;}
+  .chart-sm{height:220px;}
+
+  .insights{margin-top:16px;background:linear-gradient(180deg,#f0f6ff,#ffffff);
+            border:1px solid #cfe0ff;border-radius:12px;padding:16px 18px;}
+  .insights h3{margin:0 0 10px;font-size:14.5px;}
+  .insights ul{margin:0;padding-left:0;list-style:none;display:grid;gap:8px;}
+  .insights li{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;}
+  .insights .ico{flex:0 0 auto;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;color:#fff;}
+  .i-warn{background:var(--warn)} .i-up{background:var(--bad)} .i-info{background:var(--brand)}
+
+  .recent{margin-top:16px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);}
+  th{color:var(--sub);font-weight:600;font-size:12px;background:#fafbfc;}
+  tbody tr:hover{background:#f7f9fc;}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;}
+  .b-done{background:#e6f7ee;color:#12854f} .b-ing{background:#e7f0ff;color:#1a56db}
+  .b-new{background:#fef3e2;color:#b54708} .b-hold{background:#fdeceb;color:#c4342a}
+  .b-reject{background:#f2f4f7;color:#667085} .b-urgent{background:#fdeceb;color:#c4342a}
+
+  #loading{position:fixed;inset:0;display:grid;place-items:center;background:rgba(244,246,250,.9);font-size:15px;color:var(--sub);z-index:9}
+  .err{background:#fdeceb;color:#c4342a;border:1px solid #fecdca;padding:12px 16px;border-radius:10px;margin-bottom:16px;display:none;}
+
+  @media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid,.grid-3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="loading">데이터 불러오는 중…</div>
+<div class="wrap">
+
+  <header>
+    <h1>경기도청 민원 대시보드 <span class="sub">데이터기반행정 · 실시간 현황</span></h1>
+    <div class="status">
+      <span id="live" class="live"><span class="dot"></span><span id="liveText">연결 중…</span></span>
+      <span id="lastUpdated">—</span>
+    </div>
+  </header>
+
+  <div id="err" class="err"></div>
+
+  <div class="filters">
+    <span class="lbl">기간</span>
+    <select id="fPeriod">
+      <option value="all">전체 기간</option>
+      <option value="3m">최근 3개월</option>
+      <option value="1m">최근 1개월</option>
+    </select>
+    <span class="lbl">시·군</span>
+    <select id="fRegion"><option value="all">전체</option></select>
+    <span class="lbl">유형</span>
+    <select id="fCategory"><option value="all">전체</option></select>
+    <span class="lbl">상태</span>
+    <select id="fStatus">
+      <option value="all">전체</option>
+      <option>접수</option><option>처리중</option><option>완료</option><option>보류</option><option>반려</option>
+    </select>
+    <button id="btnDemo" class="demo">＋ 시연 민원 추가</button>
+    <button id="btnReset" class="reset">초기화</button>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="k-label">총 민원 수</div><div class="k-value" id="kTotal">–</div></div>
+    <div class="kpi"><div class="k-label">처리 완료율</div><div class="k-value" id="kDoneRate">–</div></div>
+    <div class="kpi"><div class="k-label">평균 처리기간</div><div class="k-value" id="kAvgDays">–</div></div>
+    <div class="kpi"><div class="k-label">평균 만족도</div><div class="k-value" id="kAvgSat">–</div></div>
+    <div class="kpi alert"><div class="k-label">⚠ 미처리(접수·처리중·보류)</div><div class="k-value" id="kPending">–</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><h3>월별 접수 추이</h3><div class="chart-box"><canvas id="c_trend"></canvas></div></div>
+    <div class="card"><h3>민원 유형별 분포</h3><div class="chart-box"><canvas id="c_cat"></canvas></div></div>
+    <div class="card"><h3>시·군별 접수 현황 <span class="hint">TOP 10</span></h3><div class="chart-box"><canvas id="c_region"></canvas></div></div>
+    <div class="card"><h3>부서별 처리상태 <span class="hint">누적</span></h3><div class="chart-box"><canvas id="c_dept"></canvas></div></div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card"><h3>접수채널 비중</h3><div class="chart-box chart-sm"><canvas id="c_chan"></canvas></div></div>
+    <div class="card"><h3>처리기간 분포 <span class="hint">완료 건</span></h3><div class="chart-box chart-sm"><canvas id="c_days"></canvas></div></div>
+    <div class="card"><h3>유형별 평균 만족도</h3><div class="chart-box chart-sm"><canvas id="c_sat"></canvas></div></div>
+  </div>
+
+  <div class="insights">
+    <h3>💡 자동 인사이트</h3>
+    <ul id="insights"><li><span class="ico i-info">i</span><div>분석 중…</div></li></ul>
+  </div>
+
+  <div class="card recent">
+    <h3>최근 민원 <span class="hint">실시간 수신</span></h3>
+    <table>
+      <thead><tr><th>접수번호</th><th>접수일시</th><th>시·군</th><th>부서</th><th>유형</th><th>채널</th><th>우선순위</th><th>상태</th></tr></thead>
+      <tbody id="recentBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

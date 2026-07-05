@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# deploy / deps
+.vercel
+node_modules/
+
+# 로컬 전용 (원하면 주석 해제해 config.js 를 저장소에서 제외)
+# config.js

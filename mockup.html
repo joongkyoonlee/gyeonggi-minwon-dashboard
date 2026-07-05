@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>경기도청 민원 대시보드 — 화면설계(목업)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6fa; --card:#ffffff; --ink:#1f2733; --sub:#6b7684;
+    --line:#e6eaf0; --brand:#1a56db; --brand2:#2f6fed;
+    --ok:#12b76a; --warn:#f79009; --bad:#f04438; --shadow:0 1px 3px rgba(16,24,40,.08);
+    /* 카테고리 팔레트 */
+    --c1:#1a56db; --c2:#12b76a; --c3:#f79009; --c4:#7a5af8;
+    --c5:#06aed4; --c6:#f04438; --c7:#8098a8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Malgun Gothic","맑은 고딕",system-ui,sans-serif;
+       background:var(--bg);color:var(--ink);font-size:14px;}
+  .wrap{max-width:1360px;margin:0 auto;padding:20px 24px 48px;}
+
+  /* 헤더 */
+  header{display:flex;align-items:center;justify-content:space-between;
+         padding:6px 2px 16px;flex-wrap:wrap;gap:10px;}
+  header h1{font-size:22px;margin:0;font-weight:800;letter-spacing:-.3px;}
+  header h1 .sub{font-size:13px;color:var(--sub);font-weight:500;margin-left:8px;}
+  .status{display:flex;align-items:center;gap:14px;color:var(--sub);font-size:13px;}
+  .live{display:inline-flex;align-items:center;gap:6px;color:var(--ok);font-weight:600;}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);
+       box-shadow:0 0 0 0 rgba(18,183,106,.6);animation:pulse 1.8s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(18,183,106,.5)}
+    70%{box-shadow:0 0 0 8px rgba(18,183,106,0)}100%{box-shadow:0 0 0 0 rgba(18,183,106,0)}}
+
+  .mock-banner{background:#fff7ed;border:1px solid #fed7aa;color:#b54708;
+       padding:9px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;}
+
+  /* 필터바 */
+  .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+           background:var(--card);border:1px solid var(--line);border-radius:12px;
+           padding:12px 14px;margin-bottom:16px;box-shadow:var(--shadow);}
+  .filters select,.filters button{font-family:inherit;font-size:13px;
+           border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:#fff;color:var(--ink);}
+  .filters .lbl{color:var(--sub);font-size:12px;margin-right:-4px;}
+  .filters .reset{margin-left:auto;background:var(--brand);color:#fff;border:none;cursor:pointer;font-weight:600;}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px;}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;
+       padding:16px 18px;box-shadow:var(--shadow);}
+  .kpi .k-label{color:var(--sub);font-size:12.5px;margin-bottom:8px;}
+  .kpi .k-value{font-size:26px;font-weight:800;letter-spacing:-.5px;}
+  .kpi .k-value small{font-size:14px;font-weight:600;color:var(--sub);}
+  .kpi .k-delta{font-size:12px;margin-top:6px;font-weight:600;}
+  .up{color:var(--ok)} .down{color:var(--bad)} .flat{color:var(--sub)}
+  .kpi.alert{background:#fff8f7;border-color:#fecdca;}
+  .kpi.alert .k-value{color:var(--bad)}
+
+  /* 차트 그리드 */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+        padding:16px 18px;box-shadow:var(--shadow);}
+  .card h3{margin:0 0 12px;font-size:14.5px;font-weight:700;}
+  .card h3 .hint{font-weight:400;color:var(--sub);font-size:12px;margin-left:6px;}
+  .chart-box{position:relative;height:260px;}
+  .chart-sm{height:220px;}
+
+  /* 인사이트 */
+  .insights{margin-top:16px;background:linear-gradient(180deg,#f0f6ff,#ffffff);
+            border:1px solid #cfe0ff;border-radius:12px;padding:16px 18px;}
+  .insights h3{margin:0 0 10px;font-size:14.5px;}
+  .insights ul{margin:0;padding-left:0;list-style:none;display:grid;gap:8px;}
+  .insights li{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;}
+  .insights .ico{flex:0 0 auto;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;color:#fff;}
+  .i-warn{background:var(--warn)} .i-up{background:var(--bad)} .i-info{background:var(--brand)}
+
+  /* 테이블 */
+  .recent{margin-top:16px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);}
+  th{color:var(--sub);font-weight:600;font-size:12px;background:#fafbfc;}
+  tbody tr:hover{background:#f7f9fc;}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;}
+  .b-done{background:#e6f7ee;color:#12854f} .b-ing{background:#e7f0ff;color:#1a56db}
+  .b-new{background:#fef3e2;color:#b54708} .b-hold{background:#fdeceb;color:#c4342a}
+  .b-urgent{background:#fdeceb;color:#c4342a}
+
+  @media(max-width:1000px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .grid,.grid-3{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>경기도청 민원 대시보드 <span class="sub">데이터기반행정 · 실시간 현황</span></h1>
+    <div class="status">
+      <span class="live"><span class="dot"></span>실시간 연결됨</span>
+      <span>⟳ 방금 전 갱신 · 2026-07-05</span>
+    </div>
+  </header>
+
+  <div class="mock-banner">🎨 <b>화면 설계(목업)</b> — 아래 수치·차트는 배치 확인용 예시입니다. 실제 Supabase 연동은 다음 단계에서 진행합니다.</div>
+
+  <!-- 필터 -->
+  <div class="filters">
+    <span class="lbl">기간</span>
+    <select><option>최근 12개월</option><option>최근 3개월</option><option>이번 달</option></select>
+    <span class="lbl">시·군</span>
+    <select><option>전체</option><option>수원시</option><option>고양시</option><option>용인시</option></select>
+    <span class="lbl">유형</span>
+    <select><option>전체</option><option>도로/교통</option><option>환경</option><option>복지</option><option>행정</option><option>건축/주택</option><option>안전</option><option>문화/체육</option></select>
+    <span class="lbl">상태</span>
+    <select><option>전체</option><option>접수</option><option>처리중</option><option>완료</option><option>보류</option><option>반려</option></select>
+    <button class="reset">초기화</button>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpis">
+    <div class="kpi"><div class="k-label">총 민원 수</div><div class="k-value">4,005<small> 건</small></div><div class="k-delta up">▲ 8.2% 전월 대비</div></div>
+    <div class="kpi"><div class="k-label">처리 완료율</div><div class="k-value">62.9<small>%</small></div><div class="k-delta up">▲ 2.1%p</div></div>
+    <div class="kpi"><div class="k-label">평균 처리기간</div><div class="k-value">7.0<small> 일</small></div><div class="k-delta up">▼ 0.4일 단축</div></div>
+    <div class="kpi"><div class="k-label">평균 만족도</div><div class="k-value">3.8<small> /5</small></div><div class="k-delta up">▲ 0.08</div></div>
+    <div class="kpi alert"><div class="k-label">⚠ 미처리·지연</div><div class="k-value">1,414<small> 건</small></div><div class="k-delta down">보류 159 · 반려 71 별도</div></div>
+  </div>
+
+  <!-- 차트 2단 -->
+  <div class="grid">
+    <div class="card"><h3>월별 접수 추이 <span class="hint">최근 12개월</span></h3><div class="chart-box"><canvas id="c_trend"></canvas></div></div>
+    <div class="card"><h3>민원 유형별 분포</h3><div class="chart-box"><canvas id="c_cat"></canvas></div></div>
+    <div class="card"><h3>시·군별 접수 현황 <span class="hint">TOP 10</span></h3><div class="chart-box"><canvas id="c_region"></canvas></div></div>
+    <div class="card"><h3>부서별 처리상태 <span class="hint">누적</span></h3><div class="chart-box"><canvas id="c_dept"></canvas></div></div>
+  </div>
+
+  <!-- 차트 3단 -->
+  <div class="grid-3">
+    <div class="card"><h3>접수채널 비중</h3><div class="chart-box chart-sm"><canvas id="c_chan"></canvas></div></div>
+    <div class="card"><h3>처리기간 분포</h3><div class="chart-box chart-sm"><canvas id="c_days"></canvas></div></div>
+    <div class="card"><h3>유형별 평균 만족도</h3><div class="chart-box chart-sm"><canvas id="c_sat"></canvas></div></div>
+  </div>
+
+  <!-- 인사이트 -->
+  <div class="insights">
+    <h3>💡 자동 인사이트</h3>
+    <ul>
+      <li><span class="ico i-up">▲</span><div><b>환경</b> 민원이 전월 대비 <b>+18%</b> 급증했습니다. 여름철 악취·소음 신고 증가 추정.</div></li>
+      <li><span class="ico i-warn">!</span><div><b>건축과</b> 평균 처리기간 <b>12.1일</b>로 전체 평균(7.0일)의 1.7배 — 처리 지연 점검 필요.</div></li>
+      <li><span class="ico i-info">i</span><div>만족도 하위 유형: <b>건축/주택(3.6)</b>, <b>안전(3.7)</b> — 처리 지연이 만족도에 영향.</div></li>
+    </ul>
+  </div>
+
+  <!-- 최근 민원 -->
+  <div class="card recent">
+    <h3>최근 민원 <span class="hint">실시간 수신</span></h3>
+    <table>
+      <thead><tr><th>접수번호</th><th>접수일시</th><th>시·군</th><th>부서</th><th>유형</th><th>채널</th><th>우선순위</th><th>상태</th></tr></thead>
+      <tbody>
+        <tr><td>2026-104012</td><td>2026-07-05 16:28</td><td>수원시</td><td>도로관리과</td><td>도로/교통</td><td>온라인</td><td><span class="badge b-urgent">높음</span></td><td><span class="badge b-new">접수</span></td></tr>
+        <tr><td>2026-104011</td><td>2026-07-05 15:50</td><td>고양시</td><td>환경관리과</td><td>환경</td><td>전화</td><td>보통</td><td><span class="badge b-ing">처리중</span></td></tr>
+        <tr><td>2026-104010</td><td>2026-07-05 14:11</td><td>용인시</td><td>민원행정과</td><td>행정</td><td>방문</td><td>보통</td><td><span class="badge b-done">완료</span></td></tr>
+        <tr><td>2026-104009</td><td>2026-07-05 13:37</td><td>성남시</td><td>건축과</td><td>건축/주택</td><td>이메일</td><td>낮음</td><td><span class="badge b-hold">보류</span></td></tr>
+        <tr><td>2026-104008</td><td>2026-07-05 11:52</td><td>화성시</td><td>문화체육과</td><td>문화/체육</td><td>온라인</td><td>보통</td><td><span class="badge b-hold">반려</span></td></tr>
+        <tr><td>2026-104007</td><td>2026-07-05 10:05</td><td>부천시</td><td>사회복지과</td><td>복지</td><td>온라인</td><td><span class="badge b-urgent">높음</span></td><td><span class="badge b-done">완료</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+Chart.defaults.font.family = "'Malgun Gothic','맑은 고딕',sans-serif";
+Chart.defaults.color = '#6b7684';
+const CAT = ['도로/교통','환경','복지','행정','건축/주택','안전','문화/체육'];
+const CATCOL = ['#1a56db','#12b76a','#f79009','#7a5af8','#06aed4','#f04438','#8098a8'];
+const noLegend = {plugins:{legend:{display:false}}};
+const rightLegend = {plugins:{legend:{position:'right',labels:{boxWidth:12,padding:10,font:{size:11}}}}};
+
+// 월별 접수 추이
+new Chart(c_trend,{type:'line',
+  data:{labels:['25.8','9','10','11','12','26.1','2','3','4','5','6','7'],
+    datasets:[{label:'접수',data:[298,312,305,330,288,301,345,352,368,372,360,169],
+      borderColor:'#1a56db',backgroundColor:'rgba(26,86,219,.08)',fill:true,tension:.35,pointRadius:2}]},
+  options:{maintainAspectRatio:false,...noLegend,scales:{y:{beginAtZero:true}}}});
+
+// 유형별 분포 (도넛)  ─ 순서: 도로/교통·환경·복지·행정·건축/주택·안전·문화/체육
+new Chart(c_cat,{type:'doughnut',
+  data:{labels:CAT,datasets:[{data:[955,830,536,557,490,373,259],backgroundColor:CATCOL,borderWidth:2,borderColor:'#fff'}]},
+  options:{maintainAspectRatio:false,cutout:'58%',...rightLegend}});
+
+// 시군별 TOP10 (가로 막대)
+new Chart(c_region,{type:'bar',
+  data:{labels:['수원시','고양시','용인시','성남시','화성시','부천시','남양주시','안산시','평택시','안양시'],
+    datasets:[{data:[588,290,226,208,156,151,140,120,118,138],backgroundColor:'#2f6fed',borderRadius:4}]},
+  options:{indexAxis:'y',maintainAspectRatio:false,...noLegend,scales:{x:{beginAtZero:true}}}});
+
+// 부서별 처리상태 (누적 막대)
+const depts=['도로관리과','환경관리과','사회복지과','민원행정과','건축과','안전총괄과','문화체육과'];
+new Chart(c_dept,{type:'bar',
+  data:{labels:depts,datasets:[
+    {label:'완료',data:[600,522,337,350,308,235,163],backgroundColor:'#12b76a'},
+    {label:'처리중',data:[191,166,107,111,98,75,52],backgroundColor:'#2f6fed'},
+    {label:'접수',data:[115,100,64,67,59,45,31],backgroundColor:'#f79009'},
+    {label:'보류',data:[38,33,21,22,20,15,10],backgroundColor:'#f04438'},
+    {label:'반려',data:[19,17,11,11,10,7,5],backgroundColor:'#8098a8'}]},
+  options:{maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+    scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}}});
+
+// 채널 비중 (파이)
+new Chart(c_chan,{type:'pie',
+  data:{labels:['온라인','전화','방문','이메일'],datasets:[{data:[1621,881,793,705],
+    backgroundColor:['#1a56db','#12b76a','#f79009','#8098a8'],borderWidth:2,borderColor:'#fff'}]},
+  options:{maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:11,font:{size:10.5}}}}}});
+
+// 처리기간 분포 (히스토그램, 완료 건)
+new Chart(c_days,{type:'bar',
+  data:{labels:['0-2','3-5','6-9','10-14','15+'],datasets:[{data:[430,690,640,430,325],
+    backgroundColor:'#7a5af8',borderRadius:4}]},
+  options:{maintainAspectRatio:false,...noLegend,scales:{y:{beginAtZero:true}}}});
+
+// 유형별 평균 만족도 (막대)
+new Chart(c_sat,{type:'bar',
+  data:{labels:CAT,datasets:[{data:[3.9,3.7,3.9,4.0,3.6,3.7,4.0],
+    backgroundColor:CATCOL,borderRadius:4}]},
+  options:{maintainAspectRatio:false,...noLegend,scales:{y:{beginAtZero:false,min:3.0,max:5}}}});
+</script>
+</body>
+</html>
