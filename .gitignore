@@ -10,5 +10,5 @@ Thumbs.db
 .vercel
 node_modules/
 
-# 로컬 전용 (원하면 주석 해제해 config.js 를 저장소에서 제외)
-# config.js
+# config.js 는 빌드 시 환경변수로 생성 → repo 에 포함하지 않음
+config.js

@@ -1,0 +1,9 @@
+{
+  "name": "gyeonggi-minwon-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "경기도청 민원 대시보드 (Supabase + 바닐라 JS + Chart.js)",
+  "scripts": {
+    "build": "node build-config.js"
+  }
+}
